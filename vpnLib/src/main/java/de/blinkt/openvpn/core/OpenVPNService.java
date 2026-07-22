@@ -20,6 +20,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.ServiceInfo;
 import android.content.pm.ShortcutManager;
 import android.content.res.Configuration;
 import android.content.res.Resources;
@@ -356,21 +357,28 @@ public class OpenVPNService extends VpnService implements StateListener, Callbac
 
         if (tickerText != null && !tickerText.equals(""))
             nbuilder.setTicker(tickerText);
+
+        Notification notification;
         try {
-            Notification notification = nbuilder.build();
+            notification = nbuilder.build();
+        } catch (Throwable th) {
+            Log.e(getClass().getCanonicalName(), "Error when build notification", th);
+            notification = buildFallbackForegroundNotification(msg, channel);
+        }
 
-            int notificationId = channel.hashCode();
+        int notificationId = channel.hashCode();
+        startForegroundVpn(notificationId, notification);
 
+        try {
             mNotificationManager.notify(notificationId, notification);
-
-            startForeground(notificationId, notification);
 
             if (lastChannel != null && !channel.equals(lastChannel)) {
                 // Cancel old notification
                 mNotificationManager.cancel(lastChannel.hashCode());
             }
+            lastChannel = channel;
         } catch (Throwable th) {
-            Log.e(getClass().getCanonicalName(), "Error when show notification", th);
+            Log.e(getClass().getCanonicalName(), "Error when update notification", th);
         }
 
         // Check if running on a TV
@@ -382,6 +390,30 @@ public class OpenVPNService extends VpnService implements StateListener, Callbac
 //                mlastToast = Toast.makeText(getBaseContext(), toastText, Toast.LENGTH_SHORT);
 //                mlastToast.show();
 //            });
+    }
+
+    private Notification buildFallbackForegroundNotification(String msg, String channel) {
+        Notification.Builder fallbackBuilder = new Notification.Builder(this)
+                .setContentTitle(getAppName(this))
+                .setContentText(msg == null ? "" : msg)
+                .setOnlyAlertOnce(true)
+                .setOngoing(true)
+                .setSmallIcon(R.drawable.ic_notification);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            fallbackBuilder.setChannelId(channel);
+        }
+        return fallbackBuilder.build();
+    }
+
+    private void startForegroundVpn(int notificationId, Notification notification) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                    notificationId,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+            return;
+        }
+        startForeground(notificationId, notification);
     }
 
     @TargetApi(Build.VERSION_CODES.LOLLIPOP)
