@@ -20,7 +20,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
-import android.content.pm.ServiceInfo;
 import android.content.pm.ShortcutManager;
 import android.content.res.Configuration;
 import android.content.res.Resources;
@@ -98,6 +97,8 @@ public class OpenVPNService extends VpnService implements StateListener, Callbac
     private static final int PRIORITY_MIN = -2;
     private static final int PRIORITY_DEFAULT = 0;
     private static final int PRIORITY_MAX = 2;
+    private static final int SDK_UPSIDE_DOWN_CAKE = 34;
+    private static final int FOREGROUND_SERVICE_TYPE_SPECIAL_USE = 1 << 30;
     private static boolean mNotificationAlwaysVisible = false;
     private static Class<? extends Activity> mNotificationActivityClass;
     private final Vector<String> mDnslist = new Vector<>();
@@ -406,11 +407,11 @@ public class OpenVPNService extends VpnService implements StateListener, Callbac
     }
 
     private void startForegroundVpn(int notificationId, Notification notification) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        if (Build.VERSION.SDK_INT >= SDK_UPSIDE_DOWN_CAKE) {
             startForeground(
                     notificationId,
                     notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+                    FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
             return;
         }
         startForeground(notificationId, notification);
