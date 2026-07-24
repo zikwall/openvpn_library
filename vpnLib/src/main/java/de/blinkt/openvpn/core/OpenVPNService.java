@@ -417,6 +417,35 @@ public class OpenVPNService extends VpnService implements StateListener, Callbac
         startForeground(notificationId, notification);
     }
 
+    private boolean showStartupForegroundNotification() {
+        try {
+            VpnStatus.logInfo(R.string.building_configration);
+            VpnStatus.updateStateString("VPN_GENERATE_CONFIG", "", R.string.building_configration, ConnectionStatus.LEVEL_START);
+            showNotification(VpnStatus.getLastCleanLogMessage(this),
+                    VpnStatus.getLastCleanLogMessage(this), NOTIFICATION_CHANNEL_NEWSTATUS_ID, 0, ConnectionStatus.LEVEL_START, null);
+            return true;
+        } catch (Throwable th) {
+            Log.e(getClass().getCanonicalName(), "Unable to start OpenVPN foreground service", th);
+            return false;
+        }
+    }
+
+    private boolean shouldPromoteForegroundAtCommandStart(Intent intent) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return false;
+        }
+        if (intent == null) {
+            return true;
+        }
+
+        String action = intent.getAction();
+        if (START_SERVICE.equals(action) || DISCONNECT_VPN.equals(action)
+                || PAUSE_VPN.equals(action) || RESUME_VPN.equals(action)) {
+            return false;
+        }
+        return true;
+    }
+
     @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     private void lpNotificationExtras(Notification.Builder nbuilder, String category) {
         nbuilder.setCategory(category);
@@ -573,6 +602,14 @@ public class OpenVPNService extends VpnService implements StateListener, Callbac
         VpnStatus.addByteCountListener(this);
 
         guiHandler = new Handler(getMainLooper());
+        boolean startupForegroundShown = false;
+        if (shouldPromoteForegroundAtCommandStart(intent)) {
+            startupForegroundShown = showStartupForegroundNotification();
+            if (!startupForegroundShown) {
+                stopSelf(startId);
+                return START_NOT_STICKY;
+            }
+        }
 
         if (intent != null && DISCONNECT_VPN.equals(intent.getAction())) {
             try {
@@ -603,10 +640,9 @@ public class OpenVPNService extends VpnService implements StateListener, Callbac
         }
 
         // Always show notification here to avoid problem with startForeground timeout
-        VpnStatus.logInfo(R.string.building_configration);
-        VpnStatus.updateStateString("VPN_GENERATE_CONFIG", "", R.string.building_configration, ConnectionStatus.LEVEL_START);
-        showNotification(VpnStatus.getLastCleanLogMessage(this),
-                VpnStatus.getLastCleanLogMessage(this), NOTIFICATION_CHANNEL_NEWSTATUS_ID, 0, ConnectionStatus.LEVEL_START, null);
+        if (!startupForegroundShown) {
+            showStartupForegroundNotification();
+        }
 
         if (intent != null && intent.hasExtra(getPackageName() + ".profileUUID")) {
             String profileUUID = intent.getStringExtra(getPackageName() + ".profileUUID");
